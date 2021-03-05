@@ -117,7 +117,8 @@ for i in range(0, 20000):
     cur.execute("insert into sessions (session_id, session_start, session_end, has_sale, order_products) values (%s, %s, %s, %s, %s)",
                 (id, session_start, session_end, has_sale, order_products))
 
+client.close()
+    
 con.commit()
 cur.close()
 con.close()
-client.close()
