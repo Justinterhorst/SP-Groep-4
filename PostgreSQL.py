@@ -120,3 +120,4 @@ for i in range(0, 20000):
 con.commit()
 cur.close()
 con.close()
+client.close()
