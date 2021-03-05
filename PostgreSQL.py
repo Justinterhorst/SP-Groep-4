@@ -20,7 +20,6 @@ data = products.find({})
 
 #33979 / 34004 producten correct
 #uploaden duurt ong 15 sec
-
 y = 0
 for x in data:
     id = x['_id']
