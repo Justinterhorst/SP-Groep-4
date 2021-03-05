@@ -61,12 +61,16 @@ for x in data:
                 (id, brand, category, color, description, gender, herhaalaankopen, name, price, discount, doelgroep, sub_category, sub_sub_category))
 
 visitors = db.visitors
-data = visitors.find({})
+visitorsdata = visitors.find({})
 
-#uploaden van 20000 duurt ong 70 sec
+sessions = db.sessions
+sessionsdata = sessions.find({})
+
+#uploaden van 20000 duurt ong 2.75min
 y = 0
 for i in range(0, 20000):
-    x = data[i]
+    x = visitorsdata[i]
+    z = sessionsdata[i]
 
     id = str(x['_id'])
     try:
@@ -88,37 +92,27 @@ for i in range(0, 20000):
     except:
         previously_recommended = None
 
-    y += 1
-    print("{} / 20000 ({}%)".format(y, round(y * 100 / 20000), 1))
-
     cur.execute("insert into visitors (visitor_id, viewed_before, similars, previously_recommended) values (%s, %s, %s, %s)",
                 (id, viewed_before, similars, previously_recommended))
 
-sessions = db.sessions
-data = sessions.find({})
-
-#uploaden van 20000 duurt ong 85 sec
-y = 0
-for i in range(0, 20000):
-    x = data[i]
-
-    id = x['_id']
-    session_start = x['session_start']
-    session_end = x['session_end']
-    has_sale = x['has_sale']
+    id = z['_id']
+    session_start = z['session_start']
+    session_end = z['session_end']
+    has_sale = z['has_sale']
     try:
-        order_products = str(x['order']['products'])
+        order_products = str(z['order']['products'])
     except:
         order_products = None
 
     y += 1
     print("{} / 20000 ({}%)".format(y, round(y * 100 / 20000), 1))
 
-    cur.execute("insert into sessions (session_id, session_start, session_end, has_sale, order_products) values (%s, %s, %s, %s, %s)",
-                (id, session_start, session_end, has_sale, order_products))
+    cur.execute(
+        "insert into sessions (session_id, session_start, session_end, has_sale, order_products) values (%s, %s, %s, %s, %s)",
+        (id, session_start, session_end, has_sale, order_products))
 
 client.close()
-    
+
 con.commit()
 cur.close()
 con.close()
