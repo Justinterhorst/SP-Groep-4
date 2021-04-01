@@ -22,7 +22,7 @@ PRIMARY KEY(product_id)
 CREATE TABLE profiles(
 profile_id VARCHAR(25) NOT NULL,
 buids VARCHAR(10369) NULL,
-viewed_before VARCHAR(107) NULL,
+viewed_before VARCHAR(131) NULL,
 similars VARCHAR(127) NULL,
 previously_recommended VARCHAR(4295) NULL,
 product_id VARCHAR(29) NULL,
