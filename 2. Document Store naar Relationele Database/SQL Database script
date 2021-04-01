@@ -1,6 +1,6 @@
-DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS sessions;
-DROP TABLE IF EXISTS visitors;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS products;
 
 CREATE TABLE products(
 product_id VARCHAR(29) NOT NULL,
@@ -32,11 +32,11 @@ FOREIGN KEY(product_id) REFERENCES products(product_id)
 
 CREATE TABLE sessions(
 session_id VARCHAR(83) NOT NULL,
-buid VARCHAR(217) NOT NULL,
+buid VARCHAR(1881) NULL,
 session_start TIMESTAMP NOT NULL,
 session_end TIMESTAMP NOT NULL,
 has_sale BOOLEAN NOT NULL,
-order_products VARCHAR(1051) NULL,
+order_products VARCHAR(4573) NULL,
 profile_id VARCHAR(25) NULL,
 product_id VARCHAR(29) NULL,
 PRIMARY KEY(session_id),
