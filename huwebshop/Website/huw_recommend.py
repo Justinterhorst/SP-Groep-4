@@ -107,13 +107,22 @@ class Recom(Resource):
         """ This function represents the handler for GET requests coming in
         through the API. It currently returns a random sample of products. """
         try:
-            count = str(count)
-            if len(count) > 5:
+            if '12345' in count:
                 count = count.split('12345')
                 profile_multiplier = self.percentage(count)
                 opgevraagde_producten = self.producten_opvragen(profile_multiplier, count)
                 print("Get(try)   Winkelwagen-recommendation: {}".format(opgevraagde_producten))
                 return opgevraagde_producten
+            elif '12346' in count:
+                alfabet = ['a', 'b', 'B', 'c', 'C', 'd', 'D', 'e', 'E', 'f', 'F', 'g', 'G', 'h', 'i', 'I', 'j', 'k',
+                           'K', 'l', 'L', 'm', 'M', 'n', 'N', 'o', 'O', 'p', 'P', 'q', 'r', 'R', 's', 'S', 't', 'T',
+                           'u', 'v', 'V', 'w', 'W', 'x', 'X', 'y', 'z', 'Z']
+                count = count.split('12346')
+                id = [count[0], '-']
+                for x in count[1:]:
+                    id.append(alfabet[int(x)])
+                print("Get(try)   {}".format("".join(id)))
+                cur.execute("select samengekocht from samengekocht where product_id = '{}'".format("".join(id)))
             else:
                 count = int(count)
                 if count == 1000:
