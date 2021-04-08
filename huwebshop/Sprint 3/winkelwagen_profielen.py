@@ -18,7 +18,7 @@ def winkelwagen_inhoud():
     return inhoud
 
 def percentage(winkelwagen):
-    cur.execute("select order_products, buid from sessions where order_products is not null")
+    cur.execute("select order_products, buid from sessions where order_products is not null and buid is not null")
     sessions_lst = cur.fetchall()
 
     buid_lst = []
@@ -33,13 +33,10 @@ def percentage(winkelwagen):
     profile_id_lst = []
     profile_session_dct = {}
     for buid in buid_dct.keys():
-        # buid = buid.strip('{}')
-        cur_buid = '%' + buid + '%'
-        cur.execute("select profile_id from profiles where buids like %s", (cur_buid,))
+        cur.execute("select profile_id from profiles where buids like '%{}%'".format(buid))
         profile_id = cur.fetchall()
         if profile_id != []:
-            profile_id = profile_id[0]
-            profile_id = profile_id[0]
+            profile_id = profile_id[0][0]
             profile_id_lst.append(profile_id)
 
             if profile_id not in profile_session_dct:
@@ -60,50 +57,34 @@ def producten_opvragen(profile_multiplier, winkelwagen):
 
     producten_lst = []
     index = -1
-    while len(profile_multiplier_keys) > index + 1:
+    while len(profile_multiplier_keys) > index + 1 and len(producten_lst) < 4:
         index += 1
         cur.execute("select buids from profiles where profile_id = %s", (profile_multiplier_keys[index],))
-        buids = cur.fetchall()
-        buids = buids[0]
-        buids = buids[0]
-        buids = buids.strip('{}')
-        buids_lst = buids.split(',')
 
-        for buid in buids_lst:
-            cur_buid = '%' + buid + '%'
-            cur.execute("select order_products from sessions where buid like %s and order_products is not null", (cur_buid,))
+        for buid in (cur.fetchall()[0][0].strip('{}')).split(','):
+            cur.execute("select order_products from sessions where buid like '%{}%' and order_products is not null".format(buid))
             order_products = cur.fetchall()
             for product_lst in order_products:
                 product_lst = product_lst[0]
                 product_lst = ast.literal_eval(product_lst)
                 for product_id in product_lst:
-                    producten_lst.append(product_id['id'])
-            if len(producten_lst) > 5:
+                    if product_id['id'] not in producten_lst and product_id['id'] not in winkelwagen:
+                        producten_lst.append(product_id['id'])
+                    if len(producten_lst) >= 4:
+                        break
+                if len(producten_lst) >= 4:
+                    break
+            if len(producten_lst) >= 4:
                 break
-
-    for product in producten_lst:
-        if product in winkelwagen:
-            producten_lst.remove(product)
-    producten_lst = list(dict.fromkeys(producten_lst))
-
-    producten_dct = {}
-    for product_ in producten_lst:
-        cur.execute("select price from products where product_id = %s", (product_,))
-        price = cur.fetchall()
-        price = price[0]
-        price = price[0]
-        producten_dct[product_] = price
-    sorted_producten_dct = dict(sorted(producten_dct.items(), key=lambda item: item[1]))
-    price_sorted_product_lst = list(sorted_producten_dct.keys())
-    return price_sorted_product_lst
+    return producten_lst
 
 
 if __name__ == '__main__':
     con = psycopg2.connect(
         host="localhost",
         database="huwebshop",
-        user="Niels",
-        password="niels"
+        user="postgres",
+        password=" "
     )
 
     cur = con.cursor()
@@ -111,7 +92,7 @@ if __name__ == '__main__':
     winkelwagen = winkelwagen_inhoud()
     profile_multiplier = percentage(winkelwagen)
     opgevraagde_producten = producten_opvragen(profile_multiplier, winkelwagen)
-    print(opgevraagde_producten)
+    print("{}\n{}".format(winkelwagen, opgevraagde_producten))
 
     # con.commit()
     cur.close()
