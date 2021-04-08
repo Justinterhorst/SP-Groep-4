@@ -262,7 +262,16 @@ class HUWebshop(object):
                     count = str(categories.index(category)+15)
                 print("Recommendations   {}   {}".format(category, count))
         except:
+            alfabet = ['a', 'b', 'B', 'c', 'C', 'd', 'D', 'e', 'E', 'f', 'F', 'g', 'G', 'h', 'i', 'I', 'j', 'k', 'K',
+                       'l', 'L', 'm', 'M', 'n', 'N', 'o', 'O', 'p', 'P', 'q', 'r', 'R', 's', 'S',
+                       't', 'T', 'u', 'v', 'V', 'w', 'W', 'x', 'X', 'y', 'z', 'Z']
             count = str(count)
+            if "-" in count:
+                id = [count.split('-')[0], '12346']
+                for x in list(count.split('-')[1]):
+                    id.append(str(alfabet.index(x)))
+                    id.append('12346')
+                count = "".join(id[:-1])
         resp = requests.get(self.recseraddress+"/"+session['profile_id']+"/"+count)
         if resp.status_code == 200:
             recs = eval(resp.content.decode())
