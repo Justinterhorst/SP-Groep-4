@@ -4,9 +4,9 @@ import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import psycopg2
-import random
 import ast
 from collections import Counter
+import re
 
 con = psycopg2.connect(
     host="localhost",
@@ -103,61 +103,206 @@ class Recom(Resource):
                     break
         return producten_lst
 
+    def check_aankoopgeschiedenis(self, visitor_id1):
+        '''
+        Checkt of gebruiker aankoopgeschiedenis heeft om op basis hiervan een recommendation te doen. Heeft gebruiker geen
+        visitor id of geen aankopen, toon recommendation 1. Zo wel, toon recommendation 4
+        '''
+        cur.execute("SELECT buids FROM profiles WHERE profile_id like %s;", [visitor_id1])
+        x = (str(cur.fetchone())[3:])[:-4]
+
+        if x == '':  # geen matchende buid in sessions
+            return ['38815', '25960', '32032', '29289']
+
+        y = x.split(',')
+        for i in y:
+            return self.recommend_items(self.check_producten(i))
+
+    def check_producten(self, buid):
+        '''
+        Haal producten op, zet product id's in lijst
+        '''
+        cur.execute("SELECT order_products FROM sessions WHERE buid like %s;", [buid])
+        product_id_list = re.findall(r'\d+', str(cur.fetchall()))
+        if not product_id_list:  # geen producten gekocht
+            return ['38815', '25960', '32032', '29289']
+
+        else:
+            return self.define_gender_pref(product_id_list), self.define_category(product_id_list), self.define_price_range(
+                product_id_list)
+
+    def define_gender_pref(self, product_id_list):
+        '''
+        Haal product id's op, zet product genders in lijst. Vervolgens wordt er gekeken welk gender het meest voorkomt, deze
+        wordt gereturned. Is er een draw? dan wordt er 1 item gereturned.
+        '''
+        gender_list = []
+        for i in product_id_list:
+            cur.execute("SELECT gender FROM products WHERE product_id like %s;", [str(i)])
+            a = str(cur.fetchall())
+            if 'None' in a:
+                continue
+            first = "[('"
+            last = "',)]"
+
+            try:
+                start = a.index(first) + len(first)
+                end = a.index(last, start)
+                gender_str = ((a[start:end]))
+                gender_list.append(gender_str)
+
+            except ValueError:
+                return print('error')
+
+        if not gender_list:
+            return None
+
+        return max(gender_list, key=gender_list.count)
+
+    def define_category(self, product_id_list):
+        '''
+        Haal product id's op, zet product category's in lijst. Vervolgens wordt er gekeken welke categeory het meest
+        voorkomt, deze wordt gereturned. Is er een draw? dan wordt er 1 item gereturned. Is category Null, skip dit item
+        '''
+        category_list = []
+        for i in product_id_list:
+            cur.execute("SELECT category FROM products WHERE product_id like %s;", [str(i)])
+            b = str(cur.fetchall())
+            if 'None' in b:
+                continue
+            first = "[('"
+            last = "',)]"
+
+            try:
+                start = b.index(first) + len(first)
+                end = b.index(last, start)
+                gender_str = (b[start:end])
+                category_list.append(gender_str)
+
+            except ValueError:
+                return print('error')
+
+        if not category_list:
+            return None
+
+        return max(category_list, key=category_list.count)
+
+    def define_price_range(self, product_id_list):
+        """
+        Haal prijzen van eerder gekochten producten op uit database, maak er een lijst met floats van. Reken daarna
+        het gemiddelde uit. Hiermee kunnen we een price range bepalen voor het te recommenden product.
+        """
+        prijs_lijst = []
+        count = 0
+
+        for i in product_id_list:
+            cur.execute("SELECT price FROM products WHERE product_id like %s;", [str(i)])
+            c = str(cur.fetchall())
+            first = "[(Decimal('"
+            last = "'),)]"
+
+            try:
+                start = c.index(first) + len(first)
+                end = c.index(last, start)
+                gender_str = (c[start:end])
+                prijs_lijst.append(gender_str)
+
+            except ValueError:
+                return print('error')
+
+        prijs_lijst = [float(i) for i in prijs_lijst]
+
+        for i in prijs_lijst:
+            count += i
+
+        prijs_range_1_min = round(count / (len(prijs_lijst) * 0.8), 2)
+        prijs_range_1_max = round(count / (len(prijs_lijst) * 1.2), 2)
+
+        return prijs_range_1_min, prijs_range_1_max
+
+    def recommend_items(self, d):
+        """
+        Toon lijst van 4 recommendations wanneer mogelijk. Is category en gender None, toon recommendation 1. Is lijst met gerecommende producten kleiner dan 2, toon ook recomendation 1
+        """
+        gegevens = list(d)
+
+        gender = (gegevens[0])
+        category = (gegevens[1])
+        prijsranges = (gegevens[2])
+
+        index_prijs_max = 0
+        index_prijs_min = 1
+        prijs_max = prijsranges[index_prijs_max]
+        prijs_min = prijsranges[index_prijs_min]
+
+        # Haal producten op uit database
+        if gender is None and category is None:
+            return ['38815', '25960', '32032', '29289']
+        elif gender is not None and category is None:
+            cur.execute(
+                "select product_id from products where gender like '{}' and category is null and price between '{}' and '{}'".format(
+                    gender, prijs_min, prijs_max))
+        elif gender is None and category is not None:
+            cur.execute(
+                "select product_id from products where gender is null and category like '{}' and price between '{}' and '{}'".format(
+                    category, prijs_min, prijs_max))
+        else:
+            cur.execute(
+                "select product_id from products where gender like '{}' and category like '{}' and price between '{}' and '{}'".format(
+                    gender, category, prijs_min, prijs_max))
+
+        # Zet matchende product id's in net format in lijst
+        recommendation_list = re.findall(r'\d+', str(cur.fetchall()))[:4]
+        if len(recommendation_list) <= 2:
+            return ['38815', '25960', '32032', '29289']
+
+        return recommendation_list
+
     def get(self, profileid, count):
         """ This function represents the handler for GET requests coming in
         through the API. It currently returns a random sample of products. """
-        try:
-            if '12345' in count:
-                count = count.split('12345')
-                profile_multiplier = self.percentage(count)
-                opgevraagde_producten = self.producten_opvragen(profile_multiplier, count)
-                print("Get(try)   Winkelwagen-recommendation: {}".format(opgevraagde_producten))
-                return opgevraagde_producten
-            elif '12346' in count:
-                alfabet = ['a', 'b', 'B', 'c', 'C', 'd', 'D', 'e', 'E', 'f', 'F', 'g', 'G', 'h', 'i', 'I', 'j', 'k',
-                           'K', 'l', 'L', 'm', 'M', 'n', 'N', 'o', 'O', 'p', 'P', 'q', 'r', 'R', 's', 'S', 't', 'T',
-                           'u', 'v', 'V', 'w', 'W', 'x', 'X', 'y', 'z', 'Z']
-                count = count.split('12346')
-                id = [count[0], '-']
-                for x in count[1:]:
-                    id.append(alfabet[int(x)])
-                print("Get(try)   {}".format("".join(id)))
-                cur.execute("select samengekocht from samengekocht where product_id = '{}'".format("".join(id)))
+        count = str(count)
+        if '12345' in count:
+            count = count.split('12345')
+            profile_multiplier = self.percentage(count)
+            opgevraagde_producten = self.producten_opvragen(profile_multiplier, count)
+            print("Get(try)   Winkelwagen-recommendation: {}".format(opgevraagde_producten))
+            return opgevraagde_producten
+        elif '12346' in count:
+            alfabet = ['a', 'b', 'B', 'c', 'C', 'd', 'D', 'e', 'E', 'f', 'F', 'g', 'G', 'h', 'i', 'I', 'j', 'k',
+                       'K', 'l', 'L', 'm', 'M', 'n', 'N', 'o', 'O', 'p', 'P', 'q', 'r', 'R', 's', 'S', 't', 'T',
+                       'u', 'v', 'V', 'w', 'W', 'x', 'X', 'y', 'z', 'Z']
+            count = count.split('12346')
+            id = [count[0], '-']
+            for x in count[1:]:
+                id.append(alfabet[int(x)])
+            print("Get(try)   {}".format("".join(id)))
+            cur.execute("select samengekocht from samengekocht where product_id = '{}'".format("".join(id)))
+        else:
+            count = int(count)
+            if count == 1000:
+                data = self.check_aankoopgeschiedenis(profileid)
+                print("Get(try)   overzichtpagina: {}".format(data))
+                return data
             else:
-                count = int(count)
-                if count == 1000:
-                    cur.execute("select buids from profiles where profile_id = '{}'".format(profileid))
-                    buids = cur.fetchone()[0]
-                    if buids is not None:
-                        for x in buids[1:len(buids)-1:].split(','):
-                            cur.execute("select order_products from sessions where buid LIKE '%{}%' and order_products is not null".format(x))
-                            data = cur.fetchone()
-                            aankopen = True if (data is not None) else False
-                            if aankopen is True:
-                                break
-                    else:
-                        aankopen = False
-                    if aankopen is False:
-                        return ['38815', '25960', '32032', '29289'], 200
-                else:
-                    if count > 68:
-                        cur.execute("select samengekocht from samengekocht where product_id = '{}'".format(count))
-                    if count <= 68:
-                        if count > 15:
-                            soort = "subcategory"
-                            count -= 15
-                        elif count <= 15:
-                            soort = "category"
-                        cur.execute("select {} from {}".format(soort, soort))
-                        categories = []
-                        for x in cur.fetchall():
-                            categories.append(x[0])
-                        count = categories[count]
-                        cur.execute("select meestgekocht from {} where {} = '{}'".format(soort, soort, count))
-                        print("Get(try)   {}: {}".format(soort, count))
-        except:
-            print("Get(except)")
-            cur.execute("select samengekocht from samengekocht where product_id = '{}'".format(count))
+                if count > 68:
+                    cur.execute("select samengekocht from samengekocht where product_id = '{}'".format(count))
+                if count <= 68:
+                    if count > 15:
+                        soort = "subcategory"
+                        count -= 15
+                    elif count <= 15:
+                        soort = "category"
+                    cur.execute("select {} from {}".format(soort, soort))
+                    categories = []
+                    for x in cur.fetchall():
+                        categories.append(x[0])
+                    count = categories[count]
+                    cur.execute("select meestgekocht from {} where {} = '{}'".format(soort, soort, count))
+                    print("Get(try)   {}: {}".format(soort, count))
+        # except:
+        #     print("Get(except)")
+        #     cur.execute("select samengekocht from samengekocht where product_id = '{}'".format(count))
         data = cur.fetchall()
         data = data[0][0][1:len(data[0][0])-1:].split(",")[:4]
         print("Get   data: {}".format(data))
