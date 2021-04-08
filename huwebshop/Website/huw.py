@@ -42,7 +42,7 @@ class HUWebshop(object):
 
     productfields = ["name", "price.selling_price", "properties.discount", "images"]
 
-    recommendationtypes = {'popular':"Anderen kochten ook",'similar':"Soortgelijke producten",'combination':'Combineert goed met','behaviour':'Passend bij uw gedrag','personal':'Persoonlijk aanbevolen'}
+    recommendationtypes = {'popular':"Anderen kochten ook",'similar':"Combineert goed met",'combination':'Combineert goed met','behaviour':'Passend bij uw gedrag','personal':'Persoonlijk aanbevolen'}
 
     """ ..:: Initialization and Category Index Functions ::.. """
 
@@ -238,21 +238,29 @@ class HUWebshop(object):
         of expected recommendations; to have more user information in the REST
         request, this function would have to change."""
         try:
-            if count[1] == 1:
-                soort = "category"
-            elif count[1] == 2:
-                soort = "subcategory"
-            cur.execute("select {} from {} where {} LIKE '%{}%'".format(soort, soort, soort, count[0]))
-            category = cur.fetchone()[0]
-            cur.execute("select {} from {}".format(soort, soort))
-            categories = []
-            for x in cur.fetchall():
-                categories.append(x[0])
-            if count[1] == 1:
-                count = str(categories.index(category))
-            elif count[1] == 2:
-                count = str(categories.index(category)+15)
-            print("Recommendations   {}   {}".format(category, count))
+            if count[len(count)-1] == 3:
+                count.remove(3)
+                lijst = []
+                for x in count:
+                    lijst.append(x)
+                    lijst.append('12345')
+                count = "".join(lijst[:-1])
+            else:
+                if count[1] == 1:
+                    soort = "category"
+                elif count[1] == 2:
+                    soort = "subcategory"
+                cur.execute("select {} from {} where {} LIKE '%{}%'".format(soort, soort, soort, count[0]))
+                category = cur.fetchone()[0]
+                cur.execute("select {} from {}".format(soort, soort))
+                categories = []
+                for x in cur.fetchall():
+                    categories.append(x[0])
+                if count[1] == 1:
+                    count = str(categories.index(category))
+                elif count[1] == 2:
+                    count = str(categories.index(category)+15)
+                print("Recommendations   {}   {}".format(category, count))
         except:
             count = str(count)
         resp = requests.get(self.recseraddress+"/"+session['profile_id']+"/"+count)
@@ -321,12 +329,16 @@ class HUWebshop(object):
     def shoppingcart(self):
         """ This function renders the shopping cart for the user."""
         i = []
+        ids = []
         for tup in session['shopping_cart']:
             product = self.prepproduct(self.database.products.find_one({"_id":str(tup[0])}))
             product["itemcount"] = tup[1]
+            ids.append(product['id'])
             i.append(product)
+        ids.append(3)
+        print("Shoppingcart   ids: {}".format(ids))
         return self.renderpackettemplate('shoppingcart.html',{'itemsincart':i,\
-            'r_products':self.recommendations(4), \
+            'r_products':self.recommendations("" if (not i) else ids), \
             'r_type':list(self.recommendationtypes.keys())[2],\
             'r_string':list(self.recommendationtypes.values())[2]})
 
