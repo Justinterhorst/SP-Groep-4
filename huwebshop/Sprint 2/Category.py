@@ -1,13 +1,5 @@
 import psycopg2
 
-con = psycopg2.connect(
-    host="localhost",
-    database="huwebshop",
-    user="postgres",
-    password=" "
-)
-cur = con.cursor()
-
 
 def betere_recommendation(data):
     if data is None:
@@ -26,7 +18,9 @@ def betere_recommendation(data):
         return lijst
 
 
-def category():
+def category(con):
+    cur = con.cursor()
+
     cur.execute("select product_id from products where category is not null")
     products = []
     for x in cur.fetchall():
@@ -49,65 +43,33 @@ def category():
         else:
             viewed_before.append(y[0][1:len(y[0])-1:])
 
-    cur.execute("select order_products from sessions where order_products is not null")
-    order_products = []
-    count = 0
-    for y in cur.fetchall():
-        if 'price' in y[0]:
-            for z in y[0].split(','):
-                if z[9:len(z)-1:] in products:
-                    order_products.append(z[9:len(z)-1:])
-        elif ',' in y[0][9:len(y[0])-3:]:
-            for z in y[0][0:len(y[0])-1:].split(','):
-                order_products.append(z[9:len(z)-2:])
-        else:
-            order_products.append(y[0][9:len(y)-4:])
-        count += 1
-        print("{}/185113".format(count))
+    cur.execute("select data from lijsten")
+    order_products = (cur.fetchone()[0].strip('{}')).split(',')
 
     for x in categories:
+        count = 0
         bekekenproducten = []
         for y in viewed_before:
-            if "," in y[0][1:len(y[0])-1:]:
-                for z in y[0][1:len(y[0])-1:].split(","):
-                    cur.execute("select category from products where product_id = '{}'".format(z))
-                    category = cur.fetchone()
-                    if category is None:
-                        continue
-                    elif category[0] == x:
-                        bekekenproducten.append(z)
-            else:
-                cur.execute("select category from products where product_id = '{}'".format(y[0][1:len(y[0])-1:]))
-                category = cur.fetchone()
-                if category[0] == x:
-                    bekekenproducten.append(y[0][1:len(y[0])-1:])
+            cur.execute("select category from products where product_id = '{}'".format(y))
+            category = cur.fetchone()
+            if category is not None and category[0] == x:
+                bekekenproducten.append(y)
+            count += 1
+            print("{} / 1464507".format(count))
         if not bekekenproducten:
             bekekenproducten = None
 
         meestbekeken = betere_recommendation(bekekenproducten)
 
+        count = 0
         gekochteproducten = []
         for y in order_products:
-            if 'price' in y[0]:
-                for z in y[0].split(','):
-                    try:
-                        cur.execute("select category from products where product_id = '{}'".format(z[9:len(z)-1:]))
-                        category = cur.fetchone()
-                        if category is not None and category[0] == x:
-                            gekochteproducten.append(z[9:len(z)-1:])
-                    except:
-                        continue
-            elif "," in y[0][9:len(y[0])-3:]:
-                for z in y[0][0:len(y[0])-1:].split(","):
-                    cur.execute("select category from products where product_id = '{}'".format(z[9:len(z)-2:]))
-                    category = cur.fetchone()
-                    if category is not None and category[0] == x:
-                        gekochteproducten.append(z[9:len(z)-2:])
-            else:
-                cur.execute("select category from products where product_id = '{}'".format(y[0][9:len(y[0])-3:]))
-                category = cur.fetchone()
-                if category is not None and category[0] == x:
-                    gekochteproducten.append(y[0][9:len(y)-4:])
+            cur.execute("select category from products where product_id = '{}'".format(y))
+            category = cur.fetchone()
+            if category is not None and category[0] == x:
+                gekochteproducten.append(y)
+            count += 1
+            print("{} / 658960".format(count))
         if not gekochteproducten:
             gekochteproducten = None
 
@@ -120,4 +82,9 @@ def category():
     con.close()
 
 
-category()
+category(psycopg2.connect(
+    host="localhost",
+    database="huwebshop",
+    user="postgres",
+    password=" "
+))
