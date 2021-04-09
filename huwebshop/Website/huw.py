@@ -252,6 +252,7 @@ class HUWebshop(object):
                     soort = "subcategory"
                 cur.execute("select {} from {} where {} LIKE '%{}%'".format(soort, soort, soort, count[0]))
                 category = cur.fetchone()[0]
+                category = category if (category != 'Cadeau ideeën mannen') else 'Gezichtsverzorging man'
                 cur.execute("select {} from {}".format(soort, soort))
                 categories = []
                 for x in cur.fetchall():
