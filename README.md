@@ -28,8 +28,11 @@ Het project kan worden opgestart doormiddel van:
 ```
 $ In database run SQL Database script om database aan te maken
 $ Run Data uploaden naar relationele database om database te vullen met data van MongoDB in postgres
-$ run huw.py om webshop te starten (beschrijving hiervoor beschikbaar van nick op canvas)
-$ run huw_recommend.py om recomendation te starten (beschrijving hiervoor van nick op canvas)
+$ Run Category.py om recommendations voor categoriën aan te maken in de database
+$ Run Subcategory.py om recommendations voor subcategoriën aan te maken in de database
+$ Run Meest samen gekocht.py om recommendations voor op de productpagina's aan te maken in de database
+$ Run huw.py om webshop te starten (beschrijving hiervoor beschikbaar van nick op canvas)
+$ Run huw_recommend.py om recomendation te starten (beschrijving hiervoor van nick op canvas)
 $ In sprint 3 nog live recommendations (winkelwagen)
 
 ```
