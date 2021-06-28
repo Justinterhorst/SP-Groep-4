@@ -3,7 +3,18 @@ import random
 import ast
 from collections import Counter
 
-def winkelwagen_inhoud():
+def functies(con):
+    cur = con.cursor()
+
+    winkelwagen = winkelwagen_inhoud(cur)
+    profile_multiplier = percentage(cur, winkelwagen)
+    opgevraagde_producten = producten_opvragen(cur, profile_multiplier, winkelwagen)
+    print("{}\n{}".format(winkelwagen, opgevraagde_producten))
+
+    cur.close()
+    con.close()
+
+def winkelwagen_inhoud(cur):
     cur.execute("select product_id from products")
     product_id = cur.fetchall()
     product_id_lst = []
@@ -17,7 +28,7 @@ def winkelwagen_inhoud():
         inhoud.append(product_id_lst[product_index])
     return inhoud
 
-def percentage(winkelwagen):
+def percentage(cur, winkelwagen):
     cur.execute("select order_products, buid from sessions where order_products is not null and buid is not null")
     sessions_lst = cur.fetchall()
 
@@ -51,7 +62,7 @@ def percentage(winkelwagen):
     sorted_profile_multiplier = dict(sorted(profile_multiplier.items(), key=lambda item: item[1]))
     return sorted_profile_multiplier
 
-def producten_opvragen(profile_multiplier, winkelwagen):
+def producten_opvragen(cur, profile_multiplier, winkelwagen):
     profile_multiplier_keys = list(profile_multiplier.keys())
     profile_multiplier_keys.reverse()
 
@@ -78,22 +89,10 @@ def producten_opvragen(profile_multiplier, winkelwagen):
                 break
     return producten_lst
 
-
 if __name__ == '__main__':
-    con = psycopg2.connect(
+    functies(psycopg2.connect(
         host="localhost",
         database="huwebshop",
         user="postgres",
         password=" "
-    )
-
-    cur = con.cursor()
-
-    winkelwagen = winkelwagen_inhoud()
-    profile_multiplier = percentage(winkelwagen)
-    opgevraagde_producten = producten_opvragen(profile_multiplier, winkelwagen)
-    print("{}\n{}".format(winkelwagen, opgevraagde_producten))
-
-    # con.commit()
-    cur.close()
-    con.close()
+    ))
