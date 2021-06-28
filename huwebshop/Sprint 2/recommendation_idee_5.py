@@ -1,15 +1,8 @@
 import psycopg2
 
-con = psycopg2.connect(
-    host="localhost",
-    database="huwebshop",
-    user="postgres",
-    password=" "
-)
-cur = con.cursor()
+def meestBekeken(con):
+    cur = con.cursor()
 
-
-def meestBekeken():
     cur.execute("select viewed_before from visitors where viewed_before is not null")
     viewed_before = cur.fetchall()
 
@@ -50,9 +43,13 @@ def meestBekeken():
         cur.execute("insert into meestbekeken (product_id, meestbekeken_id) values (%s, %s)",
                     (x[0], meestBekekenProducten))
 
+    con.commit()
+    cur.close()
+    con.close()
 
-meestBekeken()
-
-con.commit()
-cur.close()
-con.close()
+meestBekeken(psycopg2.connect(
+    host="localhost",
+    database="huwebshop",
+    user="postgres",
+    password=" "
+))
