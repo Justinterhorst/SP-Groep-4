@@ -1,28 +1,33 @@
 import psycopg2
 from pymongo import MongoClient
 
-mongodb_host = 'localhost'
-mongodb_port = '27017'
+def functies(con):
+    cur = con.cursor()
 
-client = MongoClient(mongodb_host +':'+ mongodb_port)
-db = client['huwebshop']
+    mongodb_host = 'localhost'
+    mongodb_port = '27017'
 
-con = psycopg2.connect(
-    host="localhost",
-    database="huwebshop",
-    user="postgres",
-    password=" "
-)
-cur = con.cursor()
+    client = MongoClient(mongodb_host + ':' + mongodb_port)
+    db = client['huwebshop']
 
-def database_setup():
+    database_setup(cur)
+    producten_uploaden(cur, db)
+    profiles_uploaden(cur, db)
+    sessions_uploaden(cur, db)
+
+    con.commit()
+    cur.close()
+    con.close()
+
+    client.close()
+
+def database_setup(cur):
     cur.execute('drop table if exists sessions; drop table if exists visitors; drop table if exists products')
     cur.execute('create table products(product_id VARCHAR(29) NOT NULL, brand VARCHAR(27) NULL, category VARCHAR(44) NULL, color VARCHAR(14) NULL, description VARCHAR(1001) NULL, gender VARCHAR(16) NULL, herhaalaankopen BOOLEAN NOT NULL, name VARCHAR(89) NOT NULL, price DECIMAL(6, 2) NOT NULL, discount VARCHAR(12) NULL, doelgroep VARCHAR(15) NULL, sub_category VARCHAR(26) NULL, sub_sub_category VARCHAR(34) NULL, PRIMARY KEY(product_id))')
     cur.execute('create table visitors(visitor_id VARCHAR(25) NOT NULL, buids VARCHAR(11000) NULL, viewed_before VARCHAR(107) NULL, similars VARCHAR(117) NULL, previously_recommended VARCHAR(4295) NULL, product_id VARCHAR(29) NULL, PRIMARY KEY(visitor_id), FOREIGN KEY(product_id) REFERENCES products(product_id))')
     cur.execute('create table sessions(session_id VARCHAR(83) NOT NULL, buid VARCHAR(106) NULL, session_start TIMESTAMP NOT NULL, session_end TIMESTAMP NOT NULL, has_sale BOOLEAN NOT NULL, order_products VARCHAR(795) NULL, product_id VARCHAR(29) NULL, visitor_id VARCHAR(25) NULL, PRIMARY KEY(session_id), FOREIGN KEY(product_id) REFERENCES products(product_id), FOREIGN KEY(visitor_id) REFERENCES visitors(visitor_id))')
 
-
-def producten_uploaden():
+def producten_uploaden(cur, db):
     products = db.products
     data = products.find({})
 
@@ -69,8 +74,7 @@ def producten_uploaden():
             (id, brand, category, color, description, gender, herhaalaankopen, name, price, discount, doelgroep,
              sub_category, sub_sub_category))
 
-
-def profiles_uploaden():
+def profiles_uploaden(cur, db):
     profiles = db.profiles
     profilesdata = profiles.find({})
 
@@ -108,10 +112,8 @@ def profiles_uploaden():
         cur.execute(
             "insert into profiles (profile_id, buids, viewed_before, similars, previously_recommended) values (%s, %s, %s, %s, %s)",
             (id, buids, viewed_before, similars, previously_recommended))
-        con.commit()
 
-
-def sessions_uploaden():
+def sessions_uploaden(cur, db):
     sessions = db.sessions
     sessionsdata = sessions.find({})
 
@@ -140,14 +142,10 @@ def sessions_uploaden():
         cur.execute(
             "insert into sessions (session_id, buid, session_start, session_end, has_sale, order_products) values (%s, %s, %s, %s, %s, %s)",
             (id, buid, session_start, session_end, has_sale, order_products))
-        con.commit()
 
-database_setup()
-profiles_uploaden()
-sessions_uploaden()
-
-client.close()
-
-con.commit()
-cur.close()
-con.close()
+functies(psycopg2.connect(
+    host="localhost",
+    database="huwebshop",
+    user="postgres",
+    password=" "
+))
