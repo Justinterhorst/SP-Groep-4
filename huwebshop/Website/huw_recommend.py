@@ -8,14 +8,6 @@ import ast
 from collections import Counter
 import re
 
-con = psycopg2.connect(
-    host="localhost",
-    database="huwebshop",
-    user="postgres",
-    password=" "
-)
-cur = con.cursor()
-
 app = Flask(__name__)
 api = Api(app)
 
@@ -25,7 +17,7 @@ envvals = ["MONGODBUSER","MONGODBPASSWORD","MONGODBSERVER"]
 dbstring = 'mongodb+srv://{0}:{1}@{2}/test?retryWrites=true&w=majority'
 
 # Since we are asked to pass a class rather than an instance of the class to the
-# add_resource method, we open the connection to the database outside of the 
+# add_resource method, we open the connection to the database outside of the
 # Recom class.
 load_dotenv()
 if os.getenv(envvals[0]) is not None:
@@ -33,14 +25,12 @@ if os.getenv(envvals[0]) is not None:
     client = MongoClient(dbstring.format(*envvals))
 else:
     client = MongoClient()
-database = client.huwebshop 
+database = client.huwebshop
 
 class Recom(Resource):
-    """ This class represents the REST API that provides the recommendations for
-    the webshop. At the moment, the API simply returns a random set of products
-    to recommend."""
 
-    def percentage(self, winkelwagen):
+    # winkelwagen_profielen
+    def percentage(self, cur, winkelwagen):
         cur.execute("select order_products, buid from sessions where order_products is not null and buid is not null")
         sessions_lst = cur.fetchall()
 
@@ -74,7 +64,7 @@ class Recom(Resource):
         sorted_profile_multiplier = dict(sorted(profile_multiplier.items(), key=lambda item: item[1]))
         return sorted_profile_multiplier
 
-    def producten_opvragen(self, profile_multiplier, winkelwagen):
+    def producten_opvragen(self, cur, profile_multiplier, winkelwagen):
         profile_multiplier_keys = list(profile_multiplier.keys())
         profile_multiplier_keys.reverse()
 
@@ -103,7 +93,8 @@ class Recom(Resource):
                     break
         return producten_lst
 
-    def check_aankoopgeschiedenis(self, visitor_id1):
+    # eerder_gekocht
+    def check_aankoopgeschiedenis(self, cur, visitor_id1):
         '''
         Checkt of gebruiker aankoopgeschiedenis heeft om op basis hiervan een recommendation te doen. Heeft gebruiker geen
         visitor id of geen aankopen, toon recommendation 1. Zo wel, toon recommendation 4
@@ -115,10 +106,10 @@ class Recom(Resource):
             return ['38815', '25960', '32032', '29289']
 
         y = x.split(',')
-        for i in y:
-            return self.recommend_items(self.check_producten(i))
+        for buid in y:
+            return self.recommend_items(cur, list(self.check_producten(cur, buid)))
 
-    def check_producten(self, buid):
+    def check_producten(self, cur, buid):
         '''
         Haal producten op, zet product id's in lijst
         '''
@@ -126,12 +117,11 @@ class Recom(Resource):
         product_id_list = re.findall(r'\d+', str(cur.fetchall()))
         if not product_id_list:  # geen producten gekocht
             return ['38815', '25960', '32032', '29289']
-
         else:
-            return self.define_gender_pref(product_id_list), self.define_category(product_id_list), self.define_price_range(
-                product_id_list)
+            return self.define_gender_pref(cur, product_id_list), self.define_category(cur, product_id_list), \
+                        self.define_price_range(cur, product_id_list)
 
-    def define_gender_pref(self, product_id_list):
+    def define_gender_pref(self, cur, product_id_list):
         '''
         Haal product id's op, zet product genders in lijst. Vervolgens wordt er gekeken welk gender het meest voorkomt, deze
         wordt gereturned. Is er een draw? dan wordt er 1 item gereturned.
@@ -139,16 +129,17 @@ class Recom(Resource):
         gender_list = []
         for i in product_id_list:
             cur.execute("SELECT gender FROM products WHERE product_id like %s;", [str(i)])
-            a = str(cur.fetchall())
-            if 'None' in a:
+            gender = str(cur.fetchall())
+
+            if 'None' in gender:
                 continue
             first = "[('"
             last = "',)]"
 
             try:
-                start = a.index(first) + len(first)
-                end = a.index(last, start)
-                gender_str = ((a[start:end]))
+                start = gender.index(first) + len(first)
+                end = gender.index(last, start)
+                gender_str = ((gender[start:end]))
                 gender_list.append(gender_str)
 
             except ValueError:
@@ -159,7 +150,7 @@ class Recom(Resource):
 
         return max(gender_list, key=gender_list.count)
 
-    def define_category(self, product_id_list):
+    def define_category(self, cur, product_id_list):
         '''
         Haal product id's op, zet product category's in lijst. Vervolgens wordt er gekeken welke categeory het meest
         voorkomt, deze wordt gereturned. Is er een draw? dan wordt er 1 item gereturned. Is category Null, skip dit item
@@ -167,16 +158,17 @@ class Recom(Resource):
         category_list = []
         for i in product_id_list:
             cur.execute("SELECT category FROM products WHERE product_id like %s;", [str(i)])
-            b = str(cur.fetchall())
-            if 'None' in b:
+            category = str(cur.fetchall())
+
+            if 'None' in category:
                 continue
             first = "[('"
             last = "',)]"
 
             try:
-                start = b.index(first) + len(first)
-                end = b.index(last, start)
-                gender_str = (b[start:end])
+                start = category.index(first) + len(first)
+                end = category.index(last, start)
+                gender_str = (category[start:end])
                 category_list.append(gender_str)
 
             except ValueError:
@@ -187,7 +179,7 @@ class Recom(Resource):
 
         return max(category_list, key=category_list.count)
 
-    def define_price_range(self, product_id_list):
+    def define_price_range(self, cur, product_id_list):
         """
         Haal prijzen van eerder gekochten producten op uit database, maak er een lijst met floats van. Reken daarna
         het gemiddelde uit. Hiermee kunnen we een price range bepalen voor het te recommenden product.
@@ -197,14 +189,15 @@ class Recom(Resource):
 
         for i in product_id_list:
             cur.execute("SELECT price FROM products WHERE product_id like %s;", [str(i)])
-            c = str(cur.fetchall())
+            prijs = str(cur.fetchall())
+
             first = "[(Decimal('"
             last = "'),)]"
 
             try:
-                start = c.index(first) + len(first)
-                end = c.index(last, start)
-                gender_str = (c[start:end])
+                start = prijs.index(first) + len(first)
+                end = prijs.index(last, start)
+                gender_str = (prijs[start:end])
                 prijs_lijst.append(gender_str)
 
             except ValueError:
@@ -215,25 +208,18 @@ class Recom(Resource):
         for i in prijs_lijst:
             count += i
 
-        prijs_range_1_min = round(count / (len(prijs_lijst) * 0.8), 2)
-        prijs_range_1_max = round(count / (len(prijs_lijst) * 1.2), 2)
+        return round(count / (len(prijs_lijst) * 0.8), 2), round(count / (len(prijs_lijst) * 1.2), 2)
 
-        return prijs_range_1_min, prijs_range_1_max
-
-    def recommend_items(self, d):
+    def recommend_items(self, cur, gegevens):
         """
         Toon lijst van 4 recommendations wanneer mogelijk. Is category en gender None, toon recommendation 1. Is lijst met gerecommende producten kleiner dan 2, toon ook recomendation 1
         """
-        gegevens = list(d)
+        gender = gegevens[0]
+        category = gegevens[1]
+        prijsranges = gegevens[2]
 
-        gender = (gegevens[0])
-        category = (gegevens[1])
-        prijsranges = (gegevens[2])
-
-        index_prijs_max = 0
-        index_prijs_min = 1
-        prijs_max = prijsranges[index_prijs_max]
-        prijs_min = prijsranges[index_prijs_min]
+        prijs_max = prijsranges[0]
+        prijs_min = prijsranges[1]
 
         # Haal producten op uit database
         if gender is None and category is None:
@@ -259,30 +245,37 @@ class Recom(Resource):
         return recommendation_list
 
     def get(self, profileid, count):
-        """ This function represents the handler for GET requests coming in
-        through the API. It currently returns a random sample of products. """
+        con = psycopg2.connect(
+            host="localhost",
+            database="huwebshop",
+            user="postgres",
+            password=" "
+        )
+        cur = con.cursor()
+
         count = str(count)
         if '12345' in count:
             count = count.split('12345')
-            profile_multiplier = self.percentage(count)
-            opgevraagde_producten = self.producten_opvragen(profile_multiplier, count)
-            print("Get(try)   Winkelwagen-recommendation: {}".format(opgevraagde_producten))
+
+            profile_multiplier = self.percentage(cur, count)
+            opgevraagde_producten = self.producten_opvragen(cur, profile_multiplier, count)
+
             return opgevraagde_producten
         elif '12346' in count:
             alfabet = ['a', 'b', 'B', 'c', 'C', 'd', 'D', 'e', 'E', 'f', 'F', 'g', 'G', 'h', 'i', 'I', 'j', 'k',
                        'K', 'l', 'L', 'm', 'M', 'n', 'N', 'o', 'O', 'p', 'P', 'q', 'r', 'R', 's', 'S', 't', 'T',
                        'u', 'v', 'V', 'w', 'W', 'x', 'X', 'y', 'z', 'Z']
+
             count = count.split('12346')
             id = [count[0], '-']
             for x in count[1:]:
                 id.append(alfabet[int(x)])
-            print("Get(try)   {}".format("".join(id)))
+
             cur.execute("select samengekocht from samengekocht where product_id = '{}'".format("".join(id)))
         else:
             count = int(count)
             if count == 1000:
-                data = self.check_aankoopgeschiedenis(profileid)
-                print("Get(try)   overzichtpagina: {}".format(data))
+                data = self.check_aankoopgeschiedenis(cur, profileid)
                 return data
             else:
                 if count > 68:
@@ -293,19 +286,17 @@ class Recom(Resource):
                         count -= 15
                     elif count <= 15:
                         soort = "category"
+
                     cur.execute("select {} from {}".format(soort, soort))
                     categories = []
                     for x in cur.fetchall():
                         categories.append(x[0])
+
                     count = categories[count]
                     cur.execute("select meestgekocht from {} where {} = '{}'".format(soort, soort, count))
-                    print("Get(try)   {}: {}".format(soort, count))
-        # except:
-        #     print("Get(except)")
-        #     cur.execute("select samengekocht from samengekocht where product_id = '{}'".format(count))
+
         data = cur.fetchall()
         data = data[0][0][1:len(data[0][0])-1:].split(",")[:4]
-        print("Get   data: {}".format(data))
         return data, 200
 
 # This method binds the Recom class to the REST API, to parse specifically
