@@ -5,14 +5,6 @@ from dotenv import load_dotenv
 from bson.objectid import ObjectId
 import psycopg2
 
-con = psycopg2.connect(
-    host="localhost",
-    database="huwebshop",
-    user="postgres",
-    password=" "
-)
-cur = con.cursor()
-
 # The secret key used for session encryption is randomly generated every time
 # the server is started up. This means all session data (including the 
 # shopping cart) is erased between server instances.
@@ -237,6 +229,14 @@ class HUWebshop(object):
         service. At the moment, it only transmits the profile ID and the number
         of expected recommendations; to have more user information in the REST
         request, this function would have to change."""
+        con = psycopg2.connect(
+            host="localhost",
+            database="huwebshop",
+            user="postgres",
+            password=" "
+        )
+        cur = con.cursor()
+
         try:
             if count[len(count)-1] == 3:
                 count.remove(3)
