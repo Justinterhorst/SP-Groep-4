@@ -1,61 +1,36 @@
-#verander visitor_id1's naar jou variabele voor visitorid
-
-
 import psycopg2
 import re
 
-
-con = psycopg2.connect(
-    host="localhost",
-    database="postgres",
-    user="postgres",
-    password=" "
-)
-cur = con.cursor()
-
-visitor_id1 = '5a394487a825610001bb7348'
-
-
-def check_aankoopgeschiedenis(visitor_id1):
+def check_aankoopgeschiedenis(con, visitor_id1):
     '''
     Checkt of gebruiker aankoopgeschiedenis heeft om op basis hiervan een recommendation te doen. Heeft gebruiker geen
     visitor id of geen aankopen, toon recommendation 1. Zo wel, toon recommendation 4
     '''
+    cur = con.cursor()
+
     cur.execute("SELECT buids FROM profiles WHERE profile_id like %s;", [visitor_id1])
-    x = cur.fetchone()
-    x = str(x)
-    x = x[3:]
-    x = x[:-4]
+    x = (str(cur.fetchone())[3:])[:-4]
 
     if x == '': #geen matchende buid in sessions
-        print('hier moet recomendation 1 komen')
-        #roep recomendation 1 aan !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        return
+        return ['38815', '25960', '32032', '29289']
 
     y = x.split(',')
-    for i in y:
-        recommend_items(check_producten(i))
+    for buid in y:
+        recommend_items(cur, list(check_producten(cur, buid)))
 
-
-def check_producten(buid):
+def check_producten(cur, buid):
     '''
     Haal producten op, zet product id's in lijst
     '''
     cur.execute("SELECT order_products FROM sessions WHERE buid like %s;", [buid])
-    product_id = cur.fetchall()
-    product_id = str(product_id)
-    product_id_list = re.findall(r'\d+', product_id)
-    if not product_id_list: #geen producten gekocht
-        print('hier moet recomendation komen')
-        #roep recomendation 1 aan!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        return
-
+    product_id_list = re.findall(r'\d+', str(cur.fetchall()))
+    if not product_id_list:  # geen producten gekocht
+        return ['38815', '25960', '32032', '29289']
     else:
-        return define_gender_pref(product_id_list), define_category(product_id_list), define_price_range(product_id_list)
+        return define_gender_pref(cur, product_id_list), define_category(cur, product_id_list), \
+                    define_price_range(cur, product_id_list)
 
-
-
-def define_gender_pref(product_id_list):
+def define_gender_pref(cur, product_id_list):
     '''
     Haal product id's op, zet product genders in lijst. Vervolgens wordt er gekeken welk gender het meest voorkomt, deze
     wordt gereturned. Is er een draw? dan wordt er 1 item gereturned.
@@ -63,17 +38,17 @@ def define_gender_pref(product_id_list):
     gender_list = []
     for i in product_id_list:
         cur.execute("SELECT gender FROM products WHERE product_id like %s;", [str(i)])
-        gender = cur.fetchall()
-        a = str(gender)
-        if 'None' in a:
+        gender = str(cur.fetchall())
+
+        if 'None' in gender:
             continue
         first = "[('"
         last = "',)]"
 
         try:
-            start = a.index(first) + len(first)
-            end = a.index(last, start)
-            gender_str = ((a[start:end]))
+            start = gender.index(first) + len(first)
+            end = gender.index(last, start)
+            gender_str = ((gender[start:end]))
             gender_list.append(gender_str)
 
         except ValueError:
@@ -84,9 +59,7 @@ def define_gender_pref(product_id_list):
 
     return max(gender_list, key=gender_list.count)
 
-
-
-def define_category(product_id_list):
+def define_category(cur, product_id_list):
     '''
     Haal product id's op, zet product category's in lijst. Vervolgens wordt er gekeken welke categeory het meest
     voorkomt, deze wordt gereturned. Is er een draw? dan wordt er 1 item gereturned. Is category Null, skip dit item
@@ -94,17 +67,17 @@ def define_category(product_id_list):
     category_list = []
     for i in product_id_list:
         cur.execute("SELECT category FROM products WHERE product_id like %s;", [str(i)])
-        category = cur.fetchall()
-        a = str(category)
-        if 'None' in a:
+        category = str(cur.fetchall())
+
+        if 'None' in category:
             continue
         first = "[('"
         last = "',)]"
 
         try:
-            start = a.index(first) + len(first)
-            end = a.index(last, start)
-            gender_str = (a[start:end])
+            start = category.index(first) + len(first)
+            end = category.index(last, start)
+            gender_str = (category[start:end])
             category_list.append(gender_str)
 
         except ValueError:
@@ -115,10 +88,7 @@ def define_category(product_id_list):
 
     return max(category_list, key=category_list.count)
 
-
-
-
-def define_price_range(product_id_list):
+def define_price_range(cur, product_id_list):
     """
     Haal prijzen van eerder gekochten producten op uit database, maak er een lijst met floats van. Reken daarna
     het gemiddelde uit. Hiermee kunnen we een price range bepalen voor het te recommenden product.
@@ -128,15 +98,15 @@ def define_price_range(product_id_list):
 
     for i in product_id_list:
         cur.execute("SELECT price FROM products WHERE product_id like %s;", [str(i)])
-        prijs = cur.fetchall()
-        a = str(prijs)
+        prijs = str(cur.fetchall())
+
         first = "[(Decimal('"
         last = "'),)]"
 
         try:
-            start = a.index(first) + len(first)
-            end = a.index(last, start)
-            gender_str = (a[start:end])
+            start = prijs.index(first) + len(first)
+            end = prijs.index(last, start)
+            gender_str = (prijs[start:end])
             prijs_lijst.append(gender_str)
 
         except ValueError:
@@ -147,38 +117,26 @@ def define_price_range(product_id_list):
     for i in prijs_lijst:
         count += i
 
-    prijs_range_1_min = round(count / (len(prijs_lijst) * 0.8), 2)
-    prijs_range_1_max = round(count / (len(prijs_lijst) * 1.2), 2)
+    return round(count / (len(prijs_lijst) * 0.8), 2), round(count / (len(prijs_lijst) * 1.2), 2)
 
-    return prijs_range_1_min, prijs_range_1_max
-
-
-def recommend_items(a):
+def recommend_items(cur, gegevens):
     """
     Toon lijst van 4 recommendations wanneer mogelijk. Is category en gender None, toon recommendation 1. Is lijst met gerecommende producten kleiner dan 2, toon ook recomendation 1
     """
-    gegevens = list(a)
+    gender = gegevens[0]
+    category = gegevens[1]
+    prijsranges = gegevens[2]
 
-    gender = (gegevens[0])
-    category = (gegevens[1])
-    prijsranges = (gegevens[2])
-
-    index_prijs_max = 0
-    index_prijs_min = 1
-    prijs_max = prijsranges[index_prijs_max]
-    prijs_min = prijsranges[index_prijs_min]
-
+    prijs_max = prijsranges[0]
+    prijs_min = prijsranges[1]
 
     # Haal producten op uit database
     if gender is None and category is None:
-        print('recomendation 1') #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
+        return ['38815', '25960', '32032', '29289']
     elif gender is not None and category is None:
         cur.execute(
             "select product_id from products where gender like '{}' and category is null and price between '{}' and '{}'".format(
                 gender, prijs_min, prijs_max))
-
     elif gender is None and category is not None:
         cur.execute(
             "select product_id from products where gender is null and category like '{}' and price between '{}' and '{}'".format(
@@ -188,19 +146,16 @@ def recommend_items(a):
             "select product_id from products where gender like '{}' and category like '{}' and price between '{}' and '{}'".format(
                 gender, category, prijs_min, prijs_max))
 
-    recommendations = cur.fetchall()
-
-    #Zet matchende product id's in net format in lijst
-    recommendations_string = str(recommendations)
-    recommendation_list = re.findall(r'\d+', recommendations_string)
+    # Zet matchende product id's in net format in lijst
+    recommendation_list = re.findall(r'\d+', str(cur.fetchall()))[:4]
     if len(recommendation_list) <= 2:
-        print('recomendation 1 functie')
-        # toon recomendation 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        return ['38815', '25960', '32032', '29289']
 
-    print(recommendation_list[:4])
+    return recommendation_list
 
-
-
-
-check_aankoopgeschiedenis(visitor_id1)
-
+check_aankoopgeschiedenis(psycopg2.connect(
+    host="localhost",
+    database="postgres",
+    user="postgres",
+    password=" "
+), '5a394487a825610001bb7348')
